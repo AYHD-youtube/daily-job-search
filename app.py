@@ -44,7 +44,7 @@ login_manager.login_view = 'login'
 # Google OAuth configuration
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
-GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', 'http://localhost:5000/callback')
+GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', 'https://daily.ayhd.dev/gmail-callback')
 
 # Scopes for Google APIs
 SCOPES = [
@@ -194,6 +194,8 @@ def get_gmail_flow(user=None):
     
     # Fallback to global OAuth credentials if available
     if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
+        # Use HTTPS redirect URI for production
+        redirect_uri = 'https://daily.ayhd.dev/gmail-callback'
         flow = Flow.from_client_config(
             {
                 "web": {
@@ -201,11 +203,11 @@ def get_gmail_flow(user=None):
                     "client_secret": GOOGLE_CLIENT_SECRET,
                     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                     "token_uri": "https://oauth2.googleapis.com/token",
-                    "redirect_uris": [GOOGLE_REDIRECT_URI]
+                    "redirect_uris": [redirect_uri]
                 }
             },
             scopes=GMAIL_SCOPES,
-            redirect_uri=GOOGLE_REDIRECT_URI
+            redirect_uri=redirect_uri
         )
         return flow
     
