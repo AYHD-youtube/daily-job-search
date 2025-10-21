@@ -9,6 +9,19 @@ import json
 import logging
 import secrets
 from datetime import datetime, timedelta
+
+# Force HTTPS for OAuth
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '0'
+
+# Configure Flask to handle proxy headers
+class ReverseProxied:
+    def __init__(self, app):
+        self.app = app
+    def __call__(self, environ, start_response):
+        # Handle X-Forwarded-Proto header from reverse proxy
+        if 'HTTP_X_FORWARDED_PROTO' in environ:
+            environ['wsgi.url_scheme'] = environ['HTTP_X_FORWARDED_PROTO']
+        return self.app(environ, start_response)
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from werkzeug.utils import secure_filename
@@ -34,6 +47,9 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:/
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'user_credentials'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+# Apply reverse proxy wrapper
+app.wsgi_app = ReverseProxied(app.wsgi_app)
 
 # Initialize extensions
 db = SQLAlchemy(app)
