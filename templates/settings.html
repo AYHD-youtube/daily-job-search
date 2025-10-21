@@ -109,6 +109,9 @@
                         <button type="button" class="btn btn-outline-primary" onclick="saveEmailSettings()">
                             <i class="fas fa-save"></i> Save Email Settings
                         </button>
+                        <button type="button" class="btn btn-outline-secondary ms-2" onclick="testEmailSettings()">
+                            <i class="fas fa-check"></i> Test Save
+                        </button>
                         
                         {% if gmail_configured %}
                         <button type="button" class="btn btn-outline-success ms-2" onclick="sendTestEmail()">
@@ -345,6 +348,7 @@ function displayTestResults(jobs) {
 
 function saveEmailSettings() {
     const notificationEmail = document.getElementById('notificationEmail').value;
+    console.log('Saving email settings:', notificationEmail);
     
     fetch('/api/save-email-settings', {
         method: 'POST',
@@ -357,6 +361,7 @@ function saveEmailSettings() {
     })
     .then(response => response.json())
     .then(data => {
+        console.log('Email settings response:', data);
         if (data.success) {
             showAlert('Email settings saved successfully!', 'success');
         } else {
@@ -364,8 +369,15 @@ function saveEmailSettings() {
         }
     })
     .catch(error => {
+        console.error('Email settings error:', error);
         showAlert('Error saving email settings: ' + error, 'danger');
     });
+}
+
+function testEmailSettings() {
+    const notificationEmail = document.getElementById('notificationEmail').value;
+    console.log('Test email settings:', notificationEmail);
+    showAlert('Email settings test: ' + notificationEmail, 'info');
 }
 
 function uploadCredentials() {
