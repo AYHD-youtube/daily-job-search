@@ -49,13 +49,48 @@
                         <h6>Gmail API</h6>
                         <p class="text-muted small">
                             Gmail API is used to send email notifications. 
-                            OAuth is already configured for your account.
+                            Authorize Gmail access to enable email notifications.
                         </p>
                         
+                        {% if gmail_configured %}
                         <div class="alert alert-success">
                             <i class="fas fa-check-circle"></i>
-                            <strong>Gmail API:</strong> Already configured via Google OAuth
+                            <strong>Gmail API:</strong> Configured and ready to send emails
                         </div>
+                        {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <strong>Gmail API:</strong> Not configured. Click "Authorize Gmail" to enable email notifications.
+                        </div>
+                        <a href="/gmail-auth" class="btn btn-primary">
+                            <i class="fas fa-envelope"></i> Authorize Gmail
+                        </a>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h6>Email Notifications</h6>
+                        <p class="text-muted small">
+                            Configure where job search results should be sent.
+                        </p>
+                        
+                        <div class="mb-3">
+                            <label for="notificationEmail" class="form-label">Notification Email</label>
+                            <input type="email" class="form-control" id="notificationEmail" 
+                                   value="{{ notification_email }}"
+                                   placeholder="Enter email address for notifications">
+                            <div class="form-text">Leave empty to use your account email ({{ current_user.email }})</div>
+                        </div>
+                        
+                        <button type="button" class="btn btn-outline-primary" onclick="saveEmailSettings()">
+                            <i class="fas fa-save"></i> Save Email Settings
+                        </button>
+                        
+                        {% if gmail_configured %}
+                        <button type="button" class="btn btn-outline-success ms-2" onclick="sendTestEmail()">
+                            <i class="fas fa-paper-plane"></i> Send Test Email
+                        </button>
+                        {% endif %}
                     </div>
                     
                     <button type="submit" class="btn btn-primary">
@@ -126,7 +161,15 @@
                     <li>Copy the ID to the form</li>
                 </ol>
                 
-                <h6>Step 3: Test Configuration</h6>
+                <h6>Step 3: Gmail OAuth</h6>
+                <ol class="small">
+                    <li>Click "Authorize Gmail" button above</li>
+                    <li>Sign in with your Google account</li>
+                    <li>Grant permission to send emails</li>
+                    <li>Configure notification email address</li>
+                </ol>
+                
+                <h6>Step 4: Test Configuration</h6>
                 <p class="small text-muted">
                     Use the test search form to verify your API keys are working correctly.
                 </p>
@@ -270,6 +313,55 @@ function displayTestResults(jobs) {
     }
     
     testResults.innerHTML = html;
+}
+
+function saveEmailSettings() {
+    const notificationEmail = document.getElementById('notificationEmail').value;
+    
+    fetch('/api/save-email-settings', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            notification_email: notificationEmail
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('Email settings saved successfully!', 'success');
+        } else {
+            showAlert('Error: ' + data.message, 'danger');
+        }
+    })
+    .catch(error => {
+        showAlert('Error saving email settings: ' + error, 'danger');
+    });
+}
+
+function sendTestEmail() {
+    if (!confirm('Send a test email to verify Gmail configuration?')) {
+        return;
+    }
+    
+    fetch('/api/test-email', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+        } else {
+            showAlert('Error: ' + data.message, 'danger');
+        }
+    })
+    .catch(error => {
+        showAlert('Error sending test email: ' + error, 'danger');
+    });
 }
 
 function showAlert(message, type) {

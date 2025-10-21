@@ -47,8 +47,14 @@ GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', 'http://localhost:50
 SCOPES = [
     'https://www.googleapis.com/auth/userinfo.email',
     'https://www.googleapis.com/auth/userinfo.profile',
-    'https://www.googleapis.com/auth/gmail.send',
     'https://www.googleapis.com/auth/customsearch'
+]
+
+# Gmail OAuth scopes
+GMAIL_SCOPES = [
+    'https://www.googleapis.com/auth/gmail.send',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/userinfo.profile'
 ]
 
 # Database Models
@@ -59,6 +65,8 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(128))
     google_id = db.Column(db.String(120), unique=True)
     google_credentials = db.Column(db.Text)  # JSON string of credentials
+    gmail_credentials = db.Column(db.Text)  # JSON string of Gmail OAuth credentials
+    notification_email = db.Column(db.String(120))  # Email address to send notifications to
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -160,6 +168,47 @@ def get_google_credentials(user):
         return creds
     except Exception as e:
         logger.error(f"Error getting credentials for user {user.id}: {e}")
+        return None
+
+def get_gmail_flow():
+    """Create Gmail OAuth flow"""
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        return None
+    
+    flow = Flow.from_client_config(
+        {
+            "web": {
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": [GOOGLE_REDIRECT_URI]
+            }
+        },
+        scopes=GMAIL_SCOPES,
+        redirect_uri=GOOGLE_REDIRECT_URI
+    )
+    return flow
+
+def get_gmail_credentials(user):
+    """Get Gmail credentials for user"""
+    if not user.gmail_credentials:
+        return None
+    
+    try:
+        creds_data = json.loads(user.gmail_credentials)
+        creds = Credentials.from_authorized_user_info(creds_data, GMAIL_SCOPES)
+        
+        # Refresh if needed
+        if creds.expired and creds.refresh_token:
+            creds.refresh(google.auth.transport.requests.Request())
+            # Save refreshed credentials
+            user.gmail_credentials = creds.to_json()
+            db.session.commit()
+        
+        return creds
+    except Exception as e:
+        logger.error(f"Error getting Gmail credentials for user {user.id}: {e}")
         return None
 
 def search_jobs_google_api(user, search_config):
@@ -410,9 +459,28 @@ def extract_job_site(url):
 def send_email_gmail_api(user, subject, content):
     """Send email using Gmail API"""
     try:
-        # For now, we'll use a simple approach without Gmail API
-        # In production, you'd need proper OAuth setup
-        logger.info(f"Email would be sent to {user.email}: {subject}")
+        # Get Gmail credentials
+        creds = get_gmail_credentials(user)
+        if not creds:
+            logger.error(f"No Gmail credentials for user {user.id}")
+            return False
+        
+        # Get notification email (use user's email if not set)
+        recipient_email = user.notification_email or user.email
+        
+        # Build Gmail service
+        service = build('gmail', 'v1', credentials=creds)
+        
+        # Create message
+        message = create_message(user.email, recipient_email, subject, content)
+        
+        # Send message
+        result = service.users().messages().send(
+            userId='me',
+            body={'raw': message}
+        ).execute()
+        
+        logger.info(f"Email sent successfully to {recipient_email}: {result.get('id')}")
         return True
         
     except Exception as e:
@@ -773,6 +841,53 @@ def callback():
     flash('Login successful!', 'success')
     return redirect(url_for('dashboard'))
 
+@app.route('/gmail-auth')
+@login_required
+def gmail_auth():
+    """Start Gmail OAuth flow"""
+    flow = get_gmail_flow()
+    if not flow:
+        flash('Gmail OAuth not configured', 'error')
+        return redirect(url_for('settings'))
+    
+    authorization_url, state = flow.authorization_url(
+        access_type='offline',
+        include_granted_scopes='true'
+    )
+    
+    session['gmail_state'] = state
+    return redirect(authorization_url)
+
+@app.route('/gmail-callback')
+@login_required
+def gmail_callback():
+    """Handle Gmail OAuth callback"""
+    flow = get_gmail_flow()
+    if not flow:
+        flash('Gmail OAuth not configured', 'error')
+        return redirect(url_for('settings'))
+    
+    try:
+        flow.fetch_token(authorization_response=request.url)
+        
+        if not session.get('gmail_state') == request.args.get('state'):
+            flash('Invalid state parameter', 'error')
+            return redirect(url_for('settings'))
+        
+        credentials = flow.credentials
+        
+        # Save Gmail credentials
+        current_user.gmail_credentials = credentials.to_json()
+        db.session.commit()
+        
+        flash('Gmail authorization successful! You can now send email notifications.', 'success')
+        return redirect(url_for('settings'))
+        
+    except Exception as e:
+        logger.error(f"Gmail OAuth error: {e}")
+        flash('Gmail authorization failed. Please try again.', 'error')
+        return redirect(url_for('settings'))
+
 @app.route('/logout')
 @login_required
 def logout():
@@ -810,7 +925,14 @@ def settings():
     else:
         api_keys = {'custom_search_api_key': '', 'search_engine_id': ''}
     
-    return render_template('settings.html', api_keys=api_keys)
+    # Get Gmail status
+    gmail_configured = bool(current_user.gmail_credentials)
+    notification_email = current_user.notification_email or current_user.email
+    
+    return render_template('settings.html', 
+                         api_keys=api_keys,
+                         gmail_configured=gmail_configured,
+                         notification_email=notification_email)
 
 @app.route('/jobs')
 @login_required
@@ -852,6 +974,65 @@ def save_api_keys():
     db.session.commit()
     
     return jsonify({'success': True, 'message': 'API keys saved successfully'})
+
+@app.route('/api/save-email-settings', methods=['POST'])
+@login_required
+def save_email_settings():
+    data = request.get_json()
+    
+    # Save notification email
+    current_user.notification_email = data.get('notification_email', '')
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': 'Email settings saved successfully'})
+
+@app.route('/api/gmail-status')
+@login_required
+def gmail_status():
+    """Check Gmail OAuth status"""
+    has_gmail_creds = bool(current_user.gmail_credentials)
+    notification_email = current_user.notification_email or current_user.email
+    
+    return jsonify({
+        'gmail_configured': has_gmail_creds,
+        'notification_email': notification_email
+    })
+
+@app.route('/api/test-email', methods=['POST'])
+@login_required
+def test_email():
+    """Send a test email to verify Gmail configuration"""
+    try:
+        # Get Gmail credentials
+        creds = get_gmail_credentials(current_user)
+        if not creds:
+            return jsonify({'success': False, 'message': 'Gmail not configured. Please authorize Gmail first.'}), 400
+        
+        # Get notification email
+        recipient_email = current_user.notification_email or current_user.email
+        
+        # Create test email content
+        subject = "Daily Job Search - Test Email"
+        content = f"""
+        <h2>Test Email from Daily Job Search</h2>
+        <p>This is a test email to verify that your Gmail OAuth configuration is working correctly.</p>
+        <p><strong>Recipient:</strong> {recipient_email}</p>
+        <p><strong>Sent at:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        <hr>
+        <p><small>If you received this email, your Gmail OAuth setup is working correctly!</small></p>
+        """
+        
+        # Send test email
+        success = send_email_gmail_api(current_user, subject, content)
+        
+        if success:
+            return jsonify({'success': True, 'message': f'Test email sent successfully to {recipient_email}'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to send test email'}), 500
+            
+    except Exception as e:
+        logger.error(f"Test email error: {e}")
+        return jsonify({'success': False, 'message': f'Error sending test email: {str(e)}'}), 500
 
 @app.route('/api/search-configs', methods=['GET', 'POST'])
 @login_required

@@ -25,7 +25,9 @@ A powerful Flask web application that automatically searches for jobs on major j
 
 ### 🎯 **Advanced Features**
 - **Google Custom Search API**: Real job search results (not just sample data)
-- **Gmail Integration**: Send emails directly from your Gmail account
+- **Gmail OAuth Integration**: Secure email sending through Gmail API
+- **Email Notifications**: Automatic job alerts sent to any email address
+- **Test Email Functionality**: Verify email setup before scheduling searches
 - **Job Tracking**: View all found jobs with filtering and export options
 - **Test Search**: Preview results before setting up automated searches
 - **Dashboard**: Beautiful, responsive web interface
@@ -75,11 +77,12 @@ Visit `http://localhost:5000` to access the application.
 5. Create a Custom Search Engine at [cse.google.com](https://cse.google.com/)
 6. Add your API key and Search Engine ID in the Settings page
 
-### Gmail API Setup (Optional)
-1. Follow the Gmail API setup guide in the application
-2. Download `credentials.json` to the project root
-3. Run the authentication process
-4. Configure your Gmail settings in the web interface
+### Gmail OAuth Setup (Optional)
+1. Follow the detailed [Gmail OAuth Setup Guide](GMAIL_OAUTH_SETUP.md)
+2. Set up Google OAuth credentials in Google Cloud Console
+3. Configure environment variables for OAuth
+4. Authorize Gmail access through the web interface
+5. Test email functionality with the built-in test feature
 
 ## 📱 Usage
 
