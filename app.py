@@ -1260,9 +1260,59 @@ def delete_job(job_id):
     
     return jsonify({'success': True, 'message': 'Job deleted successfully'})
 
+@app.route('/api/migrate-database', methods=['POST'])
+def migrate_database():
+    """Migrate database schema to add missing columns"""
+    try:
+        # Check if user_oauth_credentials column exists
+        result = db.session.execute("PRAGMA table_info(user)")
+        columns = [row[1] for row in result.fetchall()]
+        
+        migrations_applied = []
+        
+        if 'user_oauth_credentials' not in columns:
+            db.session.execute("ALTER TABLE user ADD COLUMN user_oauth_credentials TEXT")
+            db.session.commit()
+            migrations_applied.append("Added user_oauth_credentials column")
+            
+        if 'notification_email' not in columns:
+            db.session.execute("ALTER TABLE user ADD COLUMN notification_email VARCHAR(120)")
+            db.session.commit()
+            migrations_applied.append("Added notification_email column")
+        
+        if migrations_applied:
+            return jsonify({'success': True, 'message': f'Database migration completed: {", ".join(migrations_applied)}'})
+        else:
+            return jsonify({'success': True, 'message': 'Database is already up to date'})
+            
+    except Exception as e:
+        logger.error(f"Database migration error: {e}")
+        return jsonify({'success': False, 'message': f'Migration failed: {str(e)}'}), 500
+
 # Initialize database and schedule jobs
 def create_tables():
     db.create_all()
+    
+    # Add missing columns if they don't exist (for existing databases)
+    try:
+        # Check if user_oauth_credentials column exists
+        result = db.session.execute("PRAGMA table_info(user)")
+        columns = [row[1] for row in result.fetchall()]
+        
+        if 'user_oauth_credentials' not in columns:
+            db.session.execute("ALTER TABLE user ADD COLUMN user_oauth_credentials TEXT")
+            db.session.commit()
+            logger.info("Added user_oauth_credentials column to user table")
+            
+        if 'notification_email' not in columns:
+            db.session.execute("ALTER TABLE user ADD COLUMN notification_email VARCHAR(120)")
+            db.session.commit()
+            logger.info("Added notification_email column to user table")
+            
+    except Exception as e:
+        logger.error(f"Error updating database schema: {e}")
+        # Continue anyway, the columns might already exist
+    
     schedule_user_searches()
 
 # Cleanup scheduler on exit
