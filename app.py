@@ -183,9 +183,14 @@ def get_gmail_flow(user=None):
             # Use HTTPS redirect URI for production
             redirect_uri = 'https://daily.ayhd.dev/gmail-callback'
             
-            # Ensure the client config uses HTTPS
+            # Force HTTPS redirect URIs in the client config
             if 'web' in client_config:
                 client_config['web']['redirect_uris'] = [redirect_uri]
+                # Ensure all URIs use HTTPS
+                client_config['web']['auth_uri'] = 'https://accounts.google.com/o/oauth2/auth'
+                client_config['web']['token_uri'] = 'https://oauth2.googleapis.com/token'
+            
+            logger.info(f"Creating OAuth flow with redirect_uri: {redirect_uri}")
             
             flow = Flow.from_client_config(
                 client_config,
@@ -201,6 +206,7 @@ def get_gmail_flow(user=None):
     if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
         # Use HTTPS redirect URI for production
         redirect_uri = 'https://daily.ayhd.dev/gmail-callback'
+        logger.info(f"Creating fallback OAuth flow with redirect_uri: {redirect_uri}")
         flow = Flow.from_client_config(
             {
                 "web": {
