@@ -907,10 +907,15 @@ def gmail_auth():
         return redirect(url_for('settings'))
     
     try:
+        # Clear existing Gmail credentials to force fresh authorization
+        current_user.gmail_credentials = None
+        db.session.commit()
+        
         # Force HTTPS for the authorization URL
         authorization_url, state = flow.authorization_url(
             access_type='offline',
-            include_granted_scopes='true'
+            include_granted_scopes='true',
+            prompt='consent'  # Force consent screen to get fresh tokens
         )
         
         # Ensure the authorization URL uses HTTPS
