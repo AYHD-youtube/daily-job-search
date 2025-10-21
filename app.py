@@ -192,7 +192,7 @@ def search_jobs_google_api(user, search_config):
         elif search_logic == 'OR':
             keyword_query = ' OR '.join(keywords)
         else:  # AND or default
-            keyword_query = f'"{' '.join(keywords)}"'
+            keyword_query = '"' + ' '.join(keywords) + '"'
         
         query = f'({sites_query}) ({keyword_query}) ("{search_config.location_filter}")'
         
