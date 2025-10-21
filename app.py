@@ -271,16 +271,16 @@ def search_jobs_google_api(user, search_config):
     try:
         # Get API credentials from user settings
         if not user.google_credentials:
-            logger.info(f"No Google credentials for user {user.id}, returning sample data")
-            return get_sample_jobs(search_config)
+            logger.info(f"No Google credentials for user {user.id}, returning empty results")
+            return []
         
         creds_data = json.loads(user.google_credentials)
         api_key = creds_data.get('custom_search_api_key')
         search_engine_id = creds_data.get('search_engine_id')
         
         if not api_key or not search_engine_id:
-            logger.info(f"Missing API key or search engine ID for user {user.id}, returning sample data")
-            return get_sample_jobs(search_config)
+            logger.info(f"Missing API key or search engine ID for user {user.id}, returning empty results")
+            return []
         
         # Build search query
         keywords = json.loads(search_config.keywords)
@@ -348,8 +348,8 @@ def search_jobs_google_api(user, search_config):
         
     except Exception as e:
         logger.error(f"Error searching jobs for user {user.id}: {e}")
-        # Return sample data for demonstration
-        return get_sample_jobs(search_config)
+        # Return empty results instead of sample data
+        return []
 
 def get_sample_jobs(search_config):
     """Return sample job data for demonstration"""
@@ -1386,23 +1386,20 @@ def test_search():
     
     logger.info(f"Created temp config with keywords: {temp_config.keywords}")
     
-    # Try to use real Google API first, fall back to sample data if not configured or no results
+    # Try to use real Google API, return empty results if no jobs found
     is_real_search = False
+    jobs = []
     try:
         jobs = search_jobs_google_api(current_user, temp_config)
         if len(jobs) > 0:
             is_real_search = True
             logger.info(f"Found {len(jobs)} real jobs from Google API")
         else:
-            logger.warning("Google API returned 0 results, using sample data")
-            jobs = get_sample_jobs(temp_config)
-            is_real_search = False
-            logger.info(f"Generated {len(jobs)} sample jobs")
+            logger.info("Google API returned 0 results - no jobs found")
+            jobs = []  # Return empty list instead of sample data
     except Exception as e:
-        logger.warning(f"Google API search failed, using sample data: {e}")
-        jobs = get_sample_jobs(temp_config)
-        is_real_search = False
-        logger.info(f"Generated {len(jobs)} sample jobs")
+        logger.warning(f"Google API search failed: {e}")
+        jobs = []  # Return empty list instead of sample data
     
     # Clear old test results for this user to avoid accumulation
     JobResult.query.filter_by(user_id=current_user.id).delete()
