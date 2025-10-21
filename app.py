@@ -514,32 +514,44 @@ def extract_job_site(url):
 def send_email_gmail_api(user, subject, content):
     """Send email using Gmail API"""
     try:
+        logger.info(f"User {user.id}: Starting email send process")
+        
         # Get Gmail credentials
         creds = get_gmail_credentials(user)
         if not creds:
-            logger.error(f"No Gmail credentials for user {user.id}")
+            logger.error(f"User {user.id}: No Gmail credentials found")
             return False
+        
+        logger.info(f"User {user.id}: Gmail credentials obtained")
         
         # Get notification email (use user's email if not set)
         recipient_email = user.notification_email or user.email
+        logger.info(f"User {user.id}: Sending to {recipient_email}")
         
         # Build Gmail service
+        logger.info(f"User {user.id}: Building Gmail service")
         service = build('gmail', 'v1', credentials=creds)
+        logger.info(f"User {user.id}: Gmail service built successfully")
         
         # Create message
+        logger.info(f"User {user.id}: Creating email message")
         message = create_message(user.email, recipient_email, subject, content)
+        logger.info(f"User {user.id}: Email message created")
         
         # Send message
+        logger.info(f"User {user.id}: Sending email via Gmail API")
         result = service.users().messages().send(
             userId='me',
             body={'raw': message}
         ).execute()
         
-        logger.info(f"Email sent successfully to {recipient_email}: {result.get('id')}")
+        logger.info(f"User {user.id}: Email sent successfully to {recipient_email}: {result.get('id')}")
         return True
         
     except Exception as e:
-        logger.error(f"Error sending email for user {user.id}: {e}")
+        logger.error(f"User {user.id}: Error sending email: {e}")
+        import traceback
+        logger.error(f"User {user.id}: Traceback: {traceback.format_exc()}")
         return False
 
 def create_message(sender, to, subject, content):
@@ -1160,22 +1172,30 @@ def gmail_status():
 def test_email():
     """Send a test email with jobs found for the search"""
     try:
+        logger.info(f"Test email request from user {current_user.id}")
+        
         # Get Gmail credentials
         creds = get_gmail_credentials(current_user)
         if not creds:
+            logger.error(f"User {current_user.id}: No Gmail credentials found")
             return jsonify({'success': False, 'message': 'Gmail not configured. Please authorize Gmail first.'}), 400
+        
+        logger.info(f"User {current_user.id}: Gmail credentials found")
         
         # Get notification email
         recipient_email = current_user.notification_email or current_user.email
+        logger.info(f"User {current_user.id}: Sending test email to {recipient_email}")
         
         # Get user's search configurations
         configs = SearchConfig.query.filter_by(user_id=current_user.id, is_active=True).all()
         
         if not configs:
+            logger.warning(f"User {current_user.id}: No active search configurations found")
             return jsonify({'success': False, 'message': 'No active search configurations found. Please create a search configuration first.'}), 400
         
         # Get the first active configuration for testing
         config = configs[0]
+        logger.info(f"User {current_user.id}: Using search config: {config.name}")
         
         # Parse keywords
         keywords = json.loads(config.keywords) if config.keywords else []
@@ -1202,6 +1222,7 @@ def test_email():
         try:
             # Get recent jobs from the database
             recent_jobs = Job.query.filter_by(user_id=current_user.id).order_by(Job.created_at.desc()).limit(10).all()
+            logger.info(f"User {current_user.id}: Found {len(recent_jobs)} recent jobs")
             
             if recent_jobs:
                 content += "<ul>"
@@ -1228,11 +1249,14 @@ def test_email():
         """
         
         # Send test email
+        logger.info(f"User {current_user.id}: Attempting to send test email")
         success = send_email_gmail_api(current_user, subject, content)
         
         if success:
+            logger.info(f"User {current_user.id}: Test email sent successfully to {recipient_email}")
             return jsonify({'success': True, 'message': f'Test email sent successfully to {recipient_email} with search configuration and recent jobs'})
         else:
+            logger.error(f"User {current_user.id}: Failed to send test email")
             return jsonify({'success': False, 'message': 'Failed to send test email'}), 500
             
     except Exception as e:
