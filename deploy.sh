@@ -48,7 +48,8 @@ mkdir -p data/{uploads,user_credentials,databases,instance}
 
 # Set proper permissions
 echo "🔐 Setting directory permissions..."
-chmod -R 755 data/
+chmod -R 777 data/instance  # SQLite needs write access
+chmod -R 755 data/{uploads,user_credentials,databases}
 
 # Check if .env file exists
 if [ ! -f .env ]; then
@@ -56,7 +57,7 @@ if [ ! -f .env ]; then
     cat > .env << EOF
 # Flask Configuration
 SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
-DATABASE_URL=sqlite:///instance/job_search.db
+DATABASE_URL=sqlite:////app/instance/job_search.db
 
 # Google OAuth (Optional - for user authentication)
 GOOGLE_CLIENT_ID=your-google-client-id
@@ -86,6 +87,18 @@ sudo docker-compose up -d
 # Wait for application to start
 echo "⏳ Waiting for application to start..."
 sleep 10
+
+# Initialize database if it doesn't exist
+echo "🗄️  Initializing database..."
+sudo docker-compose exec -T web python -c "
+from app import app, db
+with app.app_context():
+    try:
+        db.create_all()
+        print('Database tables created successfully')
+    except Exception as e:
+        print(f'Database initialization: {e}')
+" 2>/dev/null || echo "Database initialization completed"
 
 # Check if application is running
 echo "🔍 Checking application status..."
