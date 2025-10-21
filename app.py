@@ -191,12 +191,18 @@ def get_gmail_flow(user=None):
                 client_config['web']['token_uri'] = 'https://oauth2.googleapis.com/token'
             
             logger.info(f"Creating OAuth flow with redirect_uri: {redirect_uri}")
+            logger.info(f"Client config: {client_config}")
             
+            # Create flow with explicit HTTPS settings
             flow = Flow.from_client_config(
                 client_config,
                 scopes=GMAIL_SCOPES,
                 redirect_uri=redirect_uri
             )
+            
+            # Force HTTPS in the flow
+            flow.redirect_uri = redirect_uri
+            
             return flow
         except Exception as e:
             logger.error(f"Error creating flow from user credentials: {e}")
@@ -885,10 +891,18 @@ def gmail_auth():
         return redirect(url_for('settings'))
     
     try:
+        # Force HTTPS for the authorization URL
         authorization_url, state = flow.authorization_url(
             access_type='offline',
             include_granted_scopes='true'
         )
+        
+        # Ensure the authorization URL uses HTTPS
+        if authorization_url.startswith('http://'):
+            authorization_url = authorization_url.replace('http://', 'https://')
+        
+        logger.info(f"Authorization URL: {authorization_url}")
+        logger.info(f"State: {state}")
         
         session['gmail_state'] = state
         return redirect(authorization_url)
