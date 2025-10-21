@@ -93,12 +93,30 @@ sleep 10
 echo "🗄️  Initializing database..."
 sudo docker-compose exec -T web python -c "
 from app import app, db
+from sqlalchemy import text
 with app.app_context():
     try:
+        # Create all tables
         db.create_all()
-        print('Database tables created successfully')
+        print('Database tables created')
+        
+        # Add missing columns if they don't exist
+        result = db.session.execute(text('PRAGMA table_info(user)'))
+        columns = [row[1] for row in result.fetchall()]
+        
+        if 'user_oauth_credentials' not in columns:
+            db.session.execute(text('ALTER TABLE user ADD COLUMN user_oauth_credentials TEXT'))
+            print('Added user_oauth_credentials column')
+            
+        if 'notification_email' not in columns:
+            db.session.execute(text('ALTER TABLE user ADD COLUMN notification_email VARCHAR(120)'))
+            print('Added notification_email column')
+            
+        db.session.commit()
+        print('Database migration completed successfully')
+        
     except Exception as e:
-        print(f'Database initialization: {e}')
+        print(f'Database initialization error: {e}')
 " 2>/dev/null || echo "Database initialization completed"
 
 # Check if application is running
