@@ -182,6 +182,11 @@ def get_gmail_flow(user=None):
             client_config = json.loads(user.user_oauth_credentials)
             # Use HTTPS redirect URI for production
             redirect_uri = 'https://daily.ayhd.dev/gmail-callback'
+            
+            # Ensure the client config uses HTTPS
+            if 'web' in client_config:
+                client_config['web']['redirect_uris'] = [redirect_uri]
+            
             flow = Flow.from_client_config(
                 client_config,
                 scopes=GMAIL_SCOPES,
@@ -873,13 +878,18 @@ def gmail_auth():
         flash('Gmail OAuth not configured. Please upload your credentials.json file first.', 'error')
         return redirect(url_for('settings'))
     
-    authorization_url, state = flow.authorization_url(
-        access_type='offline',
-        include_granted_scopes='true'
-    )
-    
-    session['gmail_state'] = state
-    return redirect(authorization_url)
+    try:
+        authorization_url, state = flow.authorization_url(
+            access_type='offline',
+            include_granted_scopes='true'
+        )
+        
+        session['gmail_state'] = state
+        return redirect(authorization_url)
+    except Exception as e:
+        logger.error(f"Gmail OAuth error: {e}")
+        flash('Gmail authorization failed. Please try again.', 'error')
+        return redirect(url_for('settings'))
 
 @app.route('/gmail-callback')
 @login_required
