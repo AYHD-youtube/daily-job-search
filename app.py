@@ -1415,6 +1415,56 @@ def test_search():
     db.session.commit()
     logger.info(f"Saved {len(jobs)} jobs to database")
     
+    # Send email with the test results
+    try:
+        # Get Gmail credentials
+        creds = get_gmail_credentials(current_user)
+        if creds:
+            logger.info(f"User {current_user.id}: Gmail credentials found, sending test email with results")
+            
+            # Get notification email
+            recipient_email = current_user.notification_email or current_user.email
+            
+            # Create email content with the test results
+            subject = f"Daily Job Search - Test Results - {len(jobs)} Jobs Found"
+            content = f"""
+            <h2>Test Search Results</h2>
+            <p>Here are the jobs found from your test search:</p>
+            <p><strong>Search Type:</strong> {'Real Google Search' if is_real_search else 'Sample Data'}</p>
+            <p><strong>Jobs Found:</strong> {len(jobs)}</p>
+            <p><strong>Keywords:</strong> {', '.join(data['keywords'])}</p>
+            <p><strong>Location Filter:</strong> {data.get('location_filter', 'remote OR "United States"')}</p>
+            <hr>
+            <h3>Job Results:</h3>
+            <ul>
+            """
+            
+            for job in jobs:
+                content += f"""
+                <li>
+                    <strong>{job['title']}</strong><br>
+                    <small>Company: {job.get('company', 'N/A')} | Location: {job.get('location', 'N/A')}</small><br>
+                    <a href="{job['link']}" target="_blank">View Job</a>
+                </li>
+                """
+            
+            content += """
+            </ul>
+            <hr>
+            <p><small>This is a test email from Daily Job Search showing your search results.</small></p>
+            """
+            
+            # Send the email
+            success = send_email_gmail_api(current_user, subject, content)
+            if success:
+                logger.info(f"User {current_user.id}: Test email sent successfully with {len(jobs)} jobs")
+            else:
+                logger.error(f"User {current_user.id}: Failed to send test email")
+        else:
+            logger.warning(f"User {current_user.id}: No Gmail credentials found, skipping email send")
+    except Exception as e:
+        logger.error(f"User {current_user.id}: Error sending test email: {e}")
+    
     return jsonify({
         'success': True, 
         'jobs': jobs,
