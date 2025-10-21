@@ -1172,7 +1172,10 @@ def gmail_status():
 def test_email():
     """Send a test email with jobs found for the search"""
     try:
+        logger.info(f"=== TEST EMAIL REQUEST STARTED ===")
         logger.info(f"Test email request from user {current_user.id}")
+        logger.info(f"User email: {current_user.email}")
+        logger.info(f"User notification email: {current_user.notification_email}")
         
         # Get Gmail credentials
         creds = get_gmail_credentials(current_user)
