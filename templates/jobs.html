@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+
+{% block title %}Job Results - Daily Job Search{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="fas fa-briefcase"></i> Job Results</h2>
+                    <p class="text-muted">All jobs found by your search configurations</p>
+                </div>
+                <div>
+                    <a href="/dashboard" class="btn btn-outline-primary">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </a>
+                </div>
+            </div>
+
+            <!-- Summary Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="mb-0">{{ job_results|length }}</h4>
+                                    <p class="mb-0">Total Jobs Found</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-briefcase fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="mb-0">{{ search_configs|length }}</h4>
+                                    <p class="mb-0">Search Configurations</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-search fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="mb-0">{{ jobs_by_keyword|length }}</h4>
+                                    <p class="mb-0">Keywords Searched</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-tags fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="mb-0">{{ (job_results|selectattr('found_at')|list|first).found_at.strftime('%Y-%m-%d') if job_results else 'N/A' }}</h4>
+                                    <p class="mb-0">Latest Search</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-calendar fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter and Search -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label for="keywordFilter" class="form-label">Filter by Keyword</label>
+                            <select class="form-select" id="keywordFilter">
+                                <option value="">All Keywords</option>
+                                {% for keyword in jobs_by_keyword.keys() %}
+                                <option value="{{ keyword }}">{{ keyword }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="jobSiteFilter" class="form-label">Filter by Job Site</label>
+                            <select class="form-select" id="jobSiteFilter">
+                                <option value="">All Job Sites</option>
+                                {% set job_sites = job_results|map(attribute='job_site')|unique|list %}
+                                {% for site in job_sites %}
+                                <option value="{{ site }}">{{ site }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="searchInput" class="form-label">Search Jobs</label>
+                            <input type="text" class="form-control" id="searchInput" placeholder="Search job titles...">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Jobs by Keyword -->
+            {% if jobs_by_keyword %}
+            <div class="row">
+                {% for keyword, jobs in jobs_by_keyword.items() %}
+                <div class="col-lg-6 mb-4 keyword-section" data-keyword="{{ keyword }}">
+                    <div class="card h-100">
+                        <div class="card-header bg-light">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-tag"></i> {{ keyword }}
+                                    <span class="badge bg-primary ms-2">{{ jobs|length }} jobs</span>
+                                </h5>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                        <i class="fas fa-ellipsis-v"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="#" onclick="exportKeywordJobs('{{ keyword }}')">
+                                            <i class="fas fa-download"></i> Export {{ keyword }} Jobs
+                                        </a></li>
+                                        <li><a class="dropdown-item" href="#" onclick="testKeywordSearch('{{ keyword }}')">
+                                            <i class="fas fa-search"></i> Test {{ keyword }} Search
+                                        </a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="list-group list-group-flush">
+                                {% for job in jobs %}
+                                <div class="list-group-item job-item" 
+                                     data-keyword="{{ job.keyword }}" 
+                                     data-job-site="{{ job.job_site }}"
+                                     data-title="{{ job.title|lower }}">
+                                    <div class="d-flex w-100 justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">
+                                                <a href="{{ job.link }}" target="_blank" class="text-decoration-none">
+                                                    {{ job.title }}
+                                                </a>
+                                            </h6>
+                                            <p class="mb-1 text-muted">{{ job.snippet[:150] }}{% if job.snippet|length > 150 %}...{% endif %}</p>
+                                            <div class="d-flex align-items-center">
+                                                <small class="text-muted me-3">
+                                                    <i class="fas fa-globe"></i> {{ job.job_site }}
+                                                </small>
+                                                <small class="text-muted">
+                                                    <i class="fas fa-clock"></i> {{ job.found_at.strftime('%Y-%m-%d %H:%M') }}
+                                                </small>
+                                            </div>
+                                        </div>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                <i class="fas fa-ellipsis-v"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li><a class="dropdown-item" href="{{ job.link }}" target="_blank">
+                                                    <i class="fas fa-external-link-alt"></i> View Job
+                                                </a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="copyJobLink('{{ job.link }}')">
+                                                    <i class="fas fa-copy"></i> Copy Link
+                                                </a></li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li><a class="dropdown-item text-danger" href="#" onclick="removeJob({{ job.id }})">
+                                                    <i class="fas fa-trash"></i> Remove
+                                                </a></li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                <h4 class="text-muted">No Job Results Yet</h4>
+                <p class="text-muted">Create search configurations and run tests to see job results here.</p>
+                <a href="/dashboard" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Create Search Configuration
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+// Filter functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const keywordFilter = document.getElementById('keywordFilter');
+    const jobSiteFilter = document.getElementById('jobSiteFilter');
+    const searchInput = document.getElementById('searchInput');
+    
+    function filterJobs() {
+        const selectedKeyword = keywordFilter.value;
+        const selectedJobSite = jobSiteFilter.value;
+        const searchTerm = searchInput.value.toLowerCase();
+        
+        document.querySelectorAll('.keyword-section').forEach(section => {
+            const keyword = section.dataset.keyword;
+            let showSection = !selectedKeyword || keyword === selectedKeyword;
+            
+            if (showSection) {
+                let visibleJobs = 0;
+                section.querySelectorAll('.job-item').forEach(job => {
+                    const jobSite = job.dataset.jobSite;
+                    const title = job.dataset.title;
+                    
+                    const matchesJobSite = !selectedJobSite || jobSite === selectedJobSite;
+                    const matchesSearch = !searchTerm || title.includes(searchTerm);
+                    
+                    if (matchesJobSite && matchesSearch) {
+                        job.style.display = 'block';
+                        visibleJobs++;
+                    } else {
+                        job.style.display = 'none';
+                    }
+                });
+                
+                section.style.display = visibleJobs > 0 ? 'block' : 'none';
+            } else {
+                section.style.display = 'none';
+            }
+        });
+    }
+    
+    keywordFilter.addEventListener('change', filterJobs);
+    jobSiteFilter.addEventListener('change', filterJobs);
+    searchInput.addEventListener('input', filterJobs);
+});
+
+function copyJobLink(url) {
+    navigator.clipboard.writeText(url).then(() => {
+        showAlert('Job link copied to clipboard!', 'success');
+    });
+}
+
+function exportKeywordJobs(keyword) {
+    const jobs = document.querySelectorAll(`[data-keyword="${keyword}"] .job-item`);
+    let csvContent = "Title,Link,Job Site,Found At\n";
+    
+    jobs.forEach(job => {
+        const title = job.querySelector('h6 a').textContent;
+        const link = job.querySelector('h6 a').href;
+        const jobSite = job.dataset.jobSite;
+        const foundAt = job.querySelector('.text-muted:last-child').textContent.trim();
+        
+        csvContent += `"${title}","${link}","${jobSite}","${foundAt}"\n`;
+    });
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${keyword}_jobs.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
+
+function testKeywordSearch(keyword) {
+    // Redirect to dashboard with a test search
+    window.location.href = `/dashboard?test=${encodeURIComponent(keyword)}`;
+}
+
+function removeJob(jobId) {
+    if (confirm('Are you sure you want to remove this job from your results?')) {
+        fetch(`/api/jobs/${jobId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('Job removed successfully!', 'success');
+                location.reload();
+            } else {
+                showAlert('Failed to remove job', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('Failed to remove job', 'error');
+        });
+    }
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(alertDiv);
+    
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

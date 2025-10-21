@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Daily Job Search{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-cog"></i> Settings</h2>
+        <p class="text-muted">Configure your API keys and search preferences</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-key"></i> API Configuration</h5>
+            </div>
+            <div class="card-body">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Demo Mode:</strong> Currently showing sample job data. Configure Google APIs below for real job searches.
+                        </div>
+                
+                <form id="apiKeysForm">
+                    <div class="mb-4">
+                        <h6>Google Custom Search API</h6>
+                        <p class="text-muted small">
+                            This API is used to search for jobs across different job sites. 
+                            <a href="https://developers.google.com/custom-search/v1/introduction" target="_blank">Learn how to get your API key</a>
+                        </p>
+                        
+                        <div class="mb-3">
+                            <label for="customSearchApiKey" class="form-label">Custom Search API Key</label>
+                            <input type="password" class="form-control" id="customSearchApiKey" 
+                                   value="{{ api_keys.custom_search_api_key or '' }}"
+                                   placeholder="Enter your Google Custom Search API key">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="searchEngineId" class="form-label">Search Engine ID</label>
+                            <input type="text" class="form-control" id="searchEngineId" 
+                                   value="{{ api_keys.search_engine_id or '' }}"
+                                   placeholder="Enter your Custom Search Engine ID">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h6>Gmail API</h6>
+                        <p class="text-muted small">
+                            Gmail API is used to send email notifications. 
+                            OAuth is already configured for your account.
+                        </p>
+                        
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle"></i>
+                            <strong>Gmail API:</strong> Already configured via Google OAuth
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Save API Keys
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-search"></i> Test Search</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Test your API configuration with a sample search</p>
+                
+                <form id="testSearchForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="testKeywords" class="form-label">Test Keywords</label>
+                                <input type="text" class="form-control" id="testKeywords" 
+                                       value="Business" placeholder="Enter keywords to test">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="testLocation" class="form-label">Location Filter</label>
+                                <input type="text" class="form-control" id="testLocation" 
+                                       value='remote OR "United States"' placeholder="Location filter">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="fas fa-search"></i> Test Search
+                    </button>
+                </form>
+                
+                <div id="testResults" class="mt-3" style="display: none;">
+                    <!-- Test results will be displayed here -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-question-circle"></i> Setup Guide</h5>
+            </div>
+            <div class="card-body">
+                <h6>Step 1: Google Custom Search API</h6>
+                <ol class="small">
+                    <li>Go to <a href="https://console.developers.google.com/" target="_blank">Google Cloud Console</a></li>
+                    <li>Create a new project or select existing one</li>
+                    <li>Enable the "Custom Search API"</li>
+                    <li>Create credentials (API Key)</li>
+                    <li>Copy the API key to the form</li>
+                </ol>
+                
+                <h6>Step 2: Custom Search Engine</h6>
+                <ol class="small">
+                    <li>Go to <a href="https://cse.google.com/cse/" target="_blank">Google Custom Search</a></li>
+                    <li>Create a new search engine</li>
+                    <li>Add job sites as search sites</li>
+                    <li>Get the Search Engine ID</li>
+                    <li>Copy the ID to the form</li>
+                </ol>
+                
+                <h6>Step 3: Test Configuration</h6>
+                <p class="small text-muted">
+                    Use the test search form to verify your API keys are working correctly.
+                </p>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-info"></i> Account Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-2">
+                    <strong>Name:</strong> {{ current_user.name }}
+                </div>
+                <div class="mb-2">
+                    <strong>Email:</strong> {{ current_user.email }}
+                </div>
+                <div class="mb-2">
+                    <strong>Member Since:</strong> {{ current_user.created_at.strftime('%B %d, %Y') }}
+                </div>
+                <div class="mb-2">
+                    <strong>Last Login:</strong> {{ current_user.last_login.strftime('%B %d, %Y at %I:%M %p') }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('apiKeysForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const apiKey = document.getElementById('customSearchApiKey').value;
+    const searchEngineId = document.getElementById('searchEngineId').value;
+    
+    fetch('/api/save-api-keys', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            custom_search_api_key: apiKey,
+            search_engine_id: searchEngineId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('API keys saved successfully!', 'success');
+        } else {
+            showAlert('Error: ' + data.message, 'danger');
+        }
+    });
+});
+
+document.getElementById('testSearchForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const keywords = document.getElementById('testKeywords').value.split(',').map(k => k.trim());
+    const locationFilter = document.getElementById('testLocation').value;
+    
+    const testResults = document.getElementById('testResults');
+    testResults.style.display = 'block';
+    testResults.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Searching...</span>
+            </div>
+            <p class="mt-2">Testing search...</p>
+        </div>
+    `;
+    
+    fetch('/api/test-search', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            keywords: keywords,
+            location_filter: locationFilter
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayTestResults(data.jobs);
+        } else {
+            testResults.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Error: ${data.message || 'Search failed'}
+                </div>
+            `;
+        }
+    });
+});
+
+function displayTestResults(jobs) {
+    const testResults = document.getElementById('testResults');
+    
+    if (jobs.length === 0) {
+        testResults.innerHTML = `
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                No jobs found. Check your API configuration and try different keywords.
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `
+        <div class="alert alert-success">
+            <i class="fas fa-check-circle"></i>
+            Found ${jobs.length} jobs! Your API configuration is working correctly.
+        </div>
+        <div class="list-group">
+    `;
+    
+    jobs.slice(0, 5).forEach(job => {
+        html += `
+            <div class="list-group-item">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">
+                        <a href="${job.link}" target="_blank" class="text-decoration-none">
+                            ${job.title}
+                        </a>
+                    </h6>
+                    <small class="text-muted">${job.job_site}</small>
+                </div>
+                <p class="mb-1 text-muted">${job.snippet.substring(0, 100)}...</p>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    
+    if (jobs.length > 5) {
+        html += `<p class="text-muted small mt-2">Showing first 5 of ${jobs.length} results</p>`;
+    }
+    
+    testResults.innerHTML = html;
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('.container');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}
