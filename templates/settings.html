@@ -48,23 +48,41 @@
                     <div class="mb-4">
                         <h6>Gmail API</h6>
                         <p class="text-muted small">
-                            Gmail API is used to send email notifications. 
-                            Authorize Gmail access to enable email notifications.
+                            Upload your Gmail OAuth credentials to send email notifications from your own Gmail account.
                         </p>
                         
-                        {% if gmail_configured %}
-                        <div class="alert alert-success">
-                            <i class="fas fa-check-circle"></i>
-                            <strong>Gmail API:</strong> Configured and ready to send emails
+                        {% if not oauth_credentials_uploaded %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Step 1:</strong> Upload your Gmail OAuth credentials file (credentials.json)
                         </div>
-                        {% else %}
+                        
+                        <div class="mb-3">
+                            <label for="credentialsFile" class="form-label">Upload Credentials File</label>
+                            <input type="file" class="form-control" id="credentialsFile" accept=".json">
+                            <div class="form-text">
+                                Upload your <code>credentials.json</code> file from Google Cloud Console
+                            </div>
+                        </div>
+                        
+                        <button type="button" class="btn btn-outline-primary" onclick="uploadCredentials()">
+                            <i class="fas fa-upload"></i> Upload Credentials
+                        </button>
+                        
+                        {% elif not gmail_configured %}
                         <div class="alert alert-warning">
                             <i class="fas fa-exclamation-triangle"></i>
-                            <strong>Gmail API:</strong> Not configured. Click "Authorize Gmail" to enable email notifications.
+                            <strong>Step 2:</strong> Authorize Gmail access to enable email notifications.
                         </div>
                         <a href="/gmail-auth" class="btn btn-primary">
                             <i class="fas fa-envelope"></i> Authorize Gmail
                         </a>
+                        
+                        {% else %}
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle"></i>
+                            <strong>Gmail API:</strong> Configured and ready to send emails
+                        </div>
                         {% endif %}
                     </div>
                     
@@ -163,10 +181,14 @@
                 
                 <h6>Step 3: Gmail OAuth</h6>
                 <ol class="small">
-                    <li>Click "Authorize Gmail" button above</li>
-                    <li>Sign in with your Google account</li>
-                    <li>Grant permission to send emails</li>
-                    <li>Configure notification email address</li>
+                    <li>Go to <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a></li>
+                    <li>Create a new project or select existing one</li>
+                    <li>Enable the "Gmail API"</li>
+                    <li>Go to "Credentials" → "Create Credentials" → "OAuth 2.0 Client IDs"</li>
+                    <li>Choose "Web application" and add your domain to redirect URIs</li>
+                    <li>Download the <code>credentials.json</code> file</li>
+                    <li>Upload the file using the form above</li>
+                    <li>Click "Authorize Gmail" to complete setup</li>
                 </ol>
                 
                 <h6>Step 4: Test Configuration</h6>
@@ -337,6 +359,44 @@ function saveEmailSettings() {
     })
     .catch(error => {
         showAlert('Error saving email settings: ' + error, 'danger');
+    });
+}
+
+function uploadCredentials() {
+    const fileInput = document.getElementById('credentialsFile');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        showAlert('Please select a credentials file', 'warning');
+        return;
+    }
+    
+    if (!file.name.endsWith('.json')) {
+        showAlert('Please select a .json file', 'warning');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('credentials', file);
+    
+    fetch('/api/upload-credentials', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            // Reload page to show updated status
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            showAlert('Error: ' + data.message, 'danger');
+        }
+    })
+    .catch(error => {
+        showAlert('Error uploading credentials: ' + error, 'danger');
     });
 }
 

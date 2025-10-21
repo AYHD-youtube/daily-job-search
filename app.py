@@ -11,6 +11,7 @@ import secrets
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
+from werkzeug.utils import secure_filename
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from google.oauth2.credentials import Credentials
@@ -31,6 +32,8 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///job_search.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = 'user_credentials'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
 # Initialize extensions
 db = SQLAlchemy(app)
@@ -66,6 +69,7 @@ class User(UserMixin, db.Model):
     google_id = db.Column(db.String(120), unique=True)
     google_credentials = db.Column(db.Text)  # JSON string of credentials
     gmail_credentials = db.Column(db.Text)  # JSON string of Gmail OAuth credentials
+    user_oauth_credentials = db.Column(db.Text)  # User-uploaded OAuth credentials JSON
     notification_email = db.Column(db.String(120))  # Email address to send notifications to
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime, default=datetime.utcnow)
@@ -170,25 +174,40 @@ def get_google_credentials(user):
         logger.error(f"Error getting credentials for user {user.id}: {e}")
         return None
 
-def get_gmail_flow():
-    """Create Gmail OAuth flow"""
-    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
-        return None
+def get_gmail_flow(user=None):
+    """Create Gmail OAuth flow using user's credentials"""
+    if user and user.user_oauth_credentials:
+        try:
+            # Use user's uploaded OAuth credentials
+            client_config = json.loads(user.user_oauth_credentials)
+            flow = Flow.from_client_config(
+                client_config,
+                scopes=GMAIL_SCOPES,
+                redirect_uri=request.url_root + 'gmail-callback'
+            )
+            return flow
+        except Exception as e:
+            logger.error(f"Error creating flow from user credentials: {e}")
+            return None
     
-    flow = Flow.from_client_config(
-        {
-            "web": {
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [GOOGLE_REDIRECT_URI]
-            }
-        },
-        scopes=GMAIL_SCOPES,
-        redirect_uri=GOOGLE_REDIRECT_URI
-    )
-    return flow
+    # Fallback to global OAuth credentials if available
+    if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
+        flow = Flow.from_client_config(
+            {
+                "web": {
+                    "client_id": GOOGLE_CLIENT_ID,
+                    "client_secret": GOOGLE_CLIENT_SECRET,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "redirect_uris": [GOOGLE_REDIRECT_URI]
+                }
+            },
+            scopes=GMAIL_SCOPES,
+            redirect_uri=GOOGLE_REDIRECT_URI
+        )
+        return flow
+    
+    return None
 
 def get_gmail_credentials(user):
     """Get Gmail credentials for user"""
@@ -845,9 +864,9 @@ def callback():
 @login_required
 def gmail_auth():
     """Start Gmail OAuth flow"""
-    flow = get_gmail_flow()
+    flow = get_gmail_flow(current_user)
     if not flow:
-        flash('Gmail OAuth not configured', 'error')
+        flash('Gmail OAuth not configured. Please upload your credentials.json file first.', 'error')
         return redirect(url_for('settings'))
     
     authorization_url, state = flow.authorization_url(
@@ -862,9 +881,9 @@ def gmail_auth():
 @login_required
 def gmail_callback():
     """Handle Gmail OAuth callback"""
-    flow = get_gmail_flow()
+    flow = get_gmail_flow(current_user)
     if not flow:
-        flash('Gmail OAuth not configured', 'error')
+        flash('Gmail OAuth not configured. Please upload your credentials.json file first.', 'error')
         return redirect(url_for('settings'))
     
     try:
@@ -927,11 +946,13 @@ def settings():
     
     # Get Gmail status
     gmail_configured = bool(current_user.gmail_credentials)
+    oauth_credentials_uploaded = bool(current_user.user_oauth_credentials)
     notification_email = current_user.notification_email or current_user.email
     
     return render_template('settings.html', 
                          api_keys=api_keys,
                          gmail_configured=gmail_configured,
+                         oauth_credentials_uploaded=oauth_credentials_uploaded,
                          notification_email=notification_email)
 
 @app.route('/jobs')
@@ -985,6 +1006,41 @@ def save_email_settings():
     db.session.commit()
     
     return jsonify({'success': True, 'message': 'Email settings saved successfully'})
+
+@app.route('/api/upload-credentials', methods=['POST'])
+@login_required
+def upload_credentials():
+    """Upload user's OAuth credentials file"""
+    if 'credentials' not in request.files:
+        return jsonify({'success': False, 'message': 'No file uploaded'}), 400
+    
+    file = request.files['credentials']
+    if file.filename == '':
+        return jsonify({'success': False, 'message': 'No file selected'}), 400
+    
+    if file and file.filename.endswith('.json'):
+        try:
+            # Read and validate the JSON file
+            content = file.read().decode('utf-8')
+            credentials_data = json.loads(content)
+            
+            # Validate that it's a proper OAuth credentials file
+            if 'web' not in credentials_data and 'installed' not in credentials_data:
+                return jsonify({'success': False, 'message': 'Invalid credentials file format'}), 400
+            
+            # Save to user's record
+            current_user.user_oauth_credentials = content
+            db.session.commit()
+            
+            return jsonify({'success': True, 'message': 'Credentials uploaded successfully'})
+            
+        except json.JSONDecodeError:
+            return jsonify({'success': False, 'message': 'Invalid JSON file'}), 400
+        except Exception as e:
+            logger.error(f"Error uploading credentials: {e}")
+            return jsonify({'success': False, 'message': 'Error processing file'}), 500
+    
+    return jsonify({'success': False, 'message': 'Please upload a .json file'}), 400
 
 @app.route('/api/gmail-status')
 @login_required
