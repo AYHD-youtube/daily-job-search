@@ -968,6 +968,7 @@ def gmail_callback():
         
         # Exchange authorization code for tokens
         import warnings
+        from oauthlib.oauth2.rfc6749.errors import OAuth2Error
         
         # Temporarily suppress the scope mismatch warning
         with warnings.catch_warnings():
@@ -975,18 +976,41 @@ def gmail_callback():
             try:
                 flow.fetch_token(code=code)
                 credentials = flow.credentials
-            except Exception as scope_error:
-                # If it's a scope mismatch, try to get credentials anyway
-                if "Scope has changed" in str(scope_error):
-                    logger.warning(f"Scope mismatch detected, but continuing: {scope_error}")
+            except OAuth2Error as oauth_error:
+                # If it's a scope mismatch, we need to handle it differently
+                if "Scope has changed" in str(oauth_error):
+                    logger.warning(f"Scope mismatch detected: {oauth_error}")
+                    # The scope mismatch is preventing token exchange, but we can work around it
+                    # by creating a new flow with the expanded scopes
                     try:
-                        credentials = flow.credentials
-                        logger.info("Successfully obtained credentials despite scope mismatch")
-                    except Exception as cred_error:
-                        logger.error(f"Failed to get credentials: {cred_error}")
-                        raise cred_error
+                        # Create a new flow with the expanded scopes
+                        expanded_scopes = [
+                            'https://www.googleapis.com/auth/gmail.send',
+                            'https://www.googleapis.com/auth/gmail.compose',
+                            'https://www.googleapis.com/auth/userinfo.email',
+                            'https://www.googleapis.com/auth/userinfo.profile',
+                            'openid'
+                        ]
+                        
+                        # Create a new flow with expanded scopes
+                        new_flow = Flow.from_client_config(
+                            json.loads(current_user.user_oauth_credentials),
+                            scopes=expanded_scopes,
+                            redirect_uri='https://daily.ayhd.dev/gmail-callback'
+                        )
+                        
+                        # Use the new flow to fetch tokens
+                        new_flow.fetch_token(code=code)
+                        credentials = new_flow.credentials
+                        logger.info("Successfully obtained credentials with expanded scopes")
+                    except Exception as retry_error:
+                        logger.error(f"Failed to get credentials even with expanded scopes: {retry_error}")
+                        raise retry_error
                 else:
-                    raise scope_error
+                    raise oauth_error
+            except Exception as other_error:
+                logger.error(f"Unexpected error during token exchange: {other_error}")
+                raise other_error
         
         logger.info(f"Credentials obtained: {credentials.to_json()[:100]}...")
         
