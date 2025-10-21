@@ -1158,7 +1158,7 @@ def gmail_status():
 @app.route('/api/test-email', methods=['POST'])
 @login_required
 def test_email():
-    """Send a test email to verify Gmail configuration"""
+    """Send a test email with jobs found for the search"""
     try:
         # Get Gmail credentials
         creds = get_gmail_credentials(current_user)
@@ -1168,22 +1168,70 @@ def test_email():
         # Get notification email
         recipient_email = current_user.notification_email or current_user.email
         
-        # Create test email content
-        subject = "Daily Job Search - Test Email"
+        # Get user's search configurations
+        configs = SearchConfig.query.filter_by(user_id=current_user.id, is_active=True).all()
+        
+        if not configs:
+            return jsonify({'success': False, 'message': 'No active search configurations found. Please create a search configuration first.'}), 400
+        
+        # Get the first active configuration for testing
+        config = configs[0]
+        
+        # Parse keywords
+        keywords = json.loads(config.keywords) if config.keywords else []
+        
+        # Create test email content with jobs found
+        subject = f"Daily Job Search - Test Email - {config.name}"
         content = f"""
         <h2>Test Email from Daily Job Search</h2>
         <p>This is a test email to verify that your Gmail OAuth configuration is working correctly.</p>
         <p><strong>Recipient:</strong> {recipient_email}</p>
         <p><strong>Sent at:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
         <hr>
+        <h3>Search Configuration Test</h3>
+        <p><strong>Search Name:</strong> {config.name}</p>
+        <p><strong>Keywords:</strong> {', '.join(keywords)}</p>
+        <p><strong>Location Filter:</strong> {config.location_filter}</p>
+        <p><strong>Job Sites:</strong> {', '.join(json.loads(config.job_sites) if config.job_sites else DEFAULT_JOB_SITES)}</p>
+        <p><strong>Max Job Age:</strong> {config.max_job_age} hours</p>
+        <hr>
+        <h3>Recent Jobs Found</h3>
+        """
+        
+        # Try to get recent jobs for this configuration
+        try:
+            # Get recent jobs from the database
+            recent_jobs = Job.query.filter_by(user_id=current_user.id).order_by(Job.created_at.desc()).limit(10).all()
+            
+            if recent_jobs:
+                content += "<ul>"
+                for job in recent_jobs:
+                    content += f"""
+                    <li>
+                        <strong>{job.title}</strong> at {job.company}<br>
+                        <small>Location: {job.location} | Posted: {job.created_at.strftime('%Y-%m-%d')}</small><br>
+                        <a href="{job.url}" target="_blank">View Job</a>
+                    </li>
+                    """
+                content += "</ul>"
+            else:
+                content += "<p>No recent jobs found. This is normal if you haven't run any searches yet.</p>"
+                
+        except Exception as e:
+            logger.error(f"Error getting recent jobs: {e}")
+            content += "<p>Unable to retrieve recent jobs due to an error.</p>"
+        
+        content += """
+        <hr>
         <p><small>If you received this email, your Gmail OAuth setup is working correctly!</small></p>
+        <p><small>This test email shows your search configuration and recent jobs found.</small></p>
         """
         
         # Send test email
         success = send_email_gmail_api(current_user, subject, content)
         
         if success:
-            return jsonify({'success': True, 'message': f'Test email sent successfully to {recipient_email}'})
+            return jsonify({'success': True, 'message': f'Test email sent successfully to {recipient_email} with search configuration and recent jobs'})
         else:
             return jsonify({'success': False, 'message': 'Failed to send test email'}), 500
             
