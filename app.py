@@ -1036,4 +1036,8 @@ if __name__ == '__main__':
         db.create_all()
         schedule_user_searches()
     
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    # Get port from environment variable or default to 8002
+    port = int(os.environ.get('PORT', 8002))
+    debug = os.environ.get('FLASK_ENV') != 'production'
+    
+    app.run(debug=debug, host='0.0.0.0', port=port)
