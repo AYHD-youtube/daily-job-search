@@ -936,29 +936,55 @@ def gmail_auth():
 @login_required
 def gmail_callback():
     """Handle Gmail OAuth callback"""
-    flow = get_gmail_flow(current_user)
-    if not flow:
-        flash('Gmail OAuth not configured. Please upload your credentials.json file first.', 'error')
-        return redirect(url_for('settings'))
-    
     try:
-        flow.fetch_token(authorization_response=request.url)
+        # Get the authorization code from the callback
+        code = request.args.get('code')
+        state = request.args.get('state')
+        error = request.args.get('error')
         
-        if not session.get('gmail_state') == request.args.get('state'):
-            flash('Invalid state parameter', 'error')
+        logger.info(f"Gmail callback - Code: {code}, State: {state}, Error: {error}")
+        
+        if error:
+            logger.error(f"OAuth error: {error}")
+            flash(f'Gmail authorization failed: {error}', 'error')
             return redirect(url_for('settings'))
         
+        if not code:
+            flash('Gmail authorization failed. No authorization code received.', 'error')
+            return redirect(url_for('settings'))
+        
+        # Verify state parameter
+        if state != session.get('gmail_state'):
+            logger.error(f"State mismatch: received {state}, expected {session.get('gmail_state')}")
+            flash('Gmail authorization failed. Invalid state parameter.', 'error')
+            return redirect(url_for('settings'))
+        
+        # Get the OAuth flow
+        flow = get_gmail_flow(current_user)
+        if not flow:
+            flash('Gmail OAuth not configured.', 'error')
+            return redirect(url_for('settings'))
+        
+        logger.info("Exchanging authorization code for tokens...")
+        
+        # Exchange authorization code for tokens
+        flow.fetch_token(code=code)
         credentials = flow.credentials
         
-        # Save Gmail credentials
+        logger.info(f"Credentials obtained: {credentials.to_json()[:100]}...")
+        
+        # Save credentials to user
         current_user.gmail_credentials = credentials.to_json()
         db.session.commit()
         
+        logger.info("Gmail authorization completed successfully")
         flash('Gmail authorization successful! You can now send email notifications.', 'success')
         return redirect(url_for('settings'))
         
     except Exception as e:
-        logger.error(f"Gmail OAuth error: {e}")
+        logger.error(f"Gmail callback error: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         flash('Gmail authorization failed. Please try again.', 'error')
         return redirect(url_for('settings'))
 
