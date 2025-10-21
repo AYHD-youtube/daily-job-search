@@ -1347,14 +1347,22 @@ def search_config(config_id):
             return jsonify({'success': False, 'message': f'Error updating configuration: {str(e)}'}), 400
         
         # Reschedule job
-        scheduler.remove_job(f"search_{config.id}")
+        try:
+            scheduler.remove_job(f"search_{config.id}")
+        except Exception as e:
+            logger.warning(f"Could not remove job search_{config.id}: {e}")
+        
         if config.is_active:
             schedule_search_job(config)
         
         return jsonify({'success': True, 'message': 'Configuration updated successfully'})
     
     elif request.method == 'DELETE':
-        scheduler.remove_job(f"search_{config.id}")
+        try:
+            scheduler.remove_job(f"search_{config.id}")
+        except Exception as e:
+            logger.warning(f"Could not remove job search_{config.id}: {e}")
+        
         db.session.delete(config)
         db.session.commit()
         
