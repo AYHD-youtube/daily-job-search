@@ -64,8 +64,7 @@ DATABASE_URL=sqlite:////app/instance/job_search.db
 # Google OAuth (Optional - for user authentication)
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
-GOOGLE_REDIRECT_URI=http://localhost:8002/callback
-
+GOOGLE_REDIRECT_URI=https://daily.ayhd.dev/gmail-callback
 # Production Settings
 FLASK_ENV=production
 FLASK_APP=app.py
