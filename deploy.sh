@@ -20,6 +20,28 @@ if ! command -v docker-compose &> /dev/null; then
     exit 1
 fi
 
+# Stop any running containers
+echo "🛑 Stopping any running containers..."
+docker-compose down 2>/dev/null || true
+
+# Pull latest changes from GitHub
+echo "📥 Pulling latest changes from GitHub..."
+git pull origin main
+
+# Check if there are any changes
+if [ -n "$(git status --porcelain)" ]; then
+    echo "⚠️  Warning: You have uncommitted changes. Consider committing them first."
+    echo "   Current changes:"
+    git status --short
+    echo ""
+    read -p "Do you want to continue anyway? (y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "❌ Deployment cancelled."
+        exit 1
+    fi
+fi
+
 # Create necessary directories
 echo "📁 Creating data directories..."
 mkdir -p data/{uploads,user_credentials,databases,instance}
@@ -49,9 +71,13 @@ EOF
     echo "📝 Please edit .env file to add your Google OAuth credentials"
 fi
 
+# Clean up old Docker images (optional)
+echo "🧹 Cleaning up old Docker images..."
+docker image prune -f 2>/dev/null || true
+
 # Build the Docker image
 echo "🔨 Building Docker image..."
-docker-compose build
+docker-compose build --no-cache
 
 # Start the application
 echo "🚀 Starting application..."
@@ -62,16 +88,31 @@ echo "⏳ Waiting for application to start..."
 sleep 10
 
 # Check if application is running
+echo "🔍 Checking application status..."
 if curl -f http://localhost:8002/ &> /dev/null; then
     echo "✅ Application is running successfully!"
     echo "🌐 Access your application at: http://localhost:8002"
+    echo ""
+    echo "📊 Deployment Summary:"
+    echo "  ✅ Stopped previous containers"
+    echo "  ✅ Pulled latest changes from GitHub"
+    echo "  ✅ Built new Docker image"
+    echo "  ✅ Started application"
+    echo "  ✅ Health check passed"
     echo ""
     echo "📊 Useful commands:"
     echo "  View logs: docker-compose logs -f"
     echo "  Stop app:  docker-compose down"
     echo "  Restart:   docker-compose restart"
-    echo "  Update:    git pull && docker-compose build && docker-compose up -d"
+    echo "  Update:    ./deploy.sh"
+    echo "  Status:    docker-compose ps"
 else
     echo "❌ Application failed to start. Check logs with: docker-compose logs"
+    echo ""
+    echo "🔧 Troubleshooting:"
+    echo "  1. Check logs: docker-compose logs -f"
+    echo "  2. Check status: docker-compose ps"
+    echo "  3. Restart: docker-compose restart"
+    echo "  4. Full rebuild: docker-compose down && docker-compose build --no-cache && docker-compose up -d"
     exit 1
 fi
