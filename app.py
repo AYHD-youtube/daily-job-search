@@ -1042,6 +1042,22 @@ def upload_credentials():
     
     return jsonify({'success': False, 'message': 'Please upload a .json file'}), 400
 
+@app.route('/api/delete-credentials', methods=['POST'])
+@login_required
+def delete_credentials():
+    """Delete user's OAuth credentials"""
+    try:
+        # Clear user's OAuth credentials
+        current_user.user_oauth_credentials = None
+        current_user.gmail_credentials = None  # Also clear Gmail auth tokens
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Credentials deleted successfully'})
+        
+    except Exception as e:
+        logger.error(f"Error deleting credentials: {e}")
+        return jsonify({'success': False, 'message': 'Error deleting credentials'}), 500
+
 @app.route('/api/gmail-status')
 @login_required
 def gmail_status():
