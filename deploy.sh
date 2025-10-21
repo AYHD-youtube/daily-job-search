@@ -22,7 +22,7 @@ fi
 
 # Stop any running containers
 echo "🛑 Stopping any running containers..."
-docker-compose down 2>/dev/null || true
+sudo docker-compose down 2>/dev/null || true
 
 # Pull latest changes from GitHub
 echo "📥 Pulling latest changes from GitHub..."
@@ -73,15 +73,15 @@ fi
 
 # Clean up old Docker images (optional)
 echo "🧹 Cleaning up old Docker images..."
-docker image prune -f 2>/dev/null || true
+sudo docker image prune -f 2>/dev/null || true
 
 # Build the Docker image
 echo "🔨 Building Docker image..."
-docker-compose build --no-cache
+sudo docker-compose build --no-cache
 
 # Start the application
 echo "🚀 Starting application..."
-docker-compose up -d
+sudo docker-compose up -d
 
 # Wait for application to start
 echo "⏳ Waiting for application to start..."
@@ -101,18 +101,18 @@ if curl -f http://localhost:8002/ &> /dev/null; then
     echo "  ✅ Health check passed"
     echo ""
     echo "📊 Useful commands:"
-    echo "  View logs: docker-compose logs -f"
-    echo "  Stop app:  docker-compose down"
-    echo "  Restart:   docker-compose restart"
+    echo "  View logs: sudo docker-compose logs -f"
+    echo "  Stop app:  sudo docker-compose down"
+    echo "  Restart:   sudo docker-compose restart"
     echo "  Update:    ./deploy.sh"
-    echo "  Status:    docker-compose ps"
+    echo "  Status:    sudo docker-compose ps"
 else
-    echo "❌ Application failed to start. Check logs with: docker-compose logs"
+    echo "❌ Application failed to start. Check logs with: sudo docker-compose logs"
     echo ""
     echo "🔧 Troubleshooting:"
-    echo "  1. Check logs: docker-compose logs -f"
-    echo "  2. Check status: docker-compose ps"
-    echo "  3. Restart: docker-compose restart"
-    echo "  4. Full rebuild: docker-compose down && docker-compose build --no-cache && docker-compose up -d"
+    echo "  1. Check logs: sudo docker-compose logs -f"
+    echo "  2. Check status: sudo docker-compose ps"
+    echo "  3. Restart: sudo docker-compose restart"
+    echo "  4. Full rebuild: sudo docker-compose down && sudo docker-compose build --no-cache && sudo docker-compose up -d"
     exit 1
 fi
