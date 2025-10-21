@@ -974,8 +974,26 @@ def gmail_callback():
             # Handle scope mismatch by ignoring the warning and continuing
             if "Scope has changed" in str(scope_error):
                 logger.warning(f"Scope mismatch detected, but continuing: {scope_error}")
-                # Try to get credentials anyway
-                credentials = flow.credentials
+                # The fetch_token failed due to scope mismatch, but we can still get the credentials
+                # by creating a new flow with the correct scopes
+                try:
+                    # Create a new flow with the expanded scopes that Google actually granted
+                    expanded_scopes = [
+                        'https://www.googleapis.com/auth/gmail.send',
+                        'https://www.googleapis.com/auth/gmail.compose',
+                        'https://www.googleapis.com/auth/userinfo.email',
+                        'https://www.googleapis.com/auth/userinfo.profile',
+                        'openid'
+                    ]
+                    
+                    # Update the flow with the expanded scopes
+                    flow.scope = expanded_scopes
+                    flow.fetch_token(code=code)
+                    credentials = flow.credentials
+                    logger.info("Successfully obtained credentials with expanded scopes")
+                except Exception as retry_error:
+                    logger.error(f"Failed to get credentials even with expanded scopes: {retry_error}")
+                    raise retry_error
             else:
                 raise scope_error
         
