@@ -967,8 +967,17 @@ def gmail_callback():
         logger.info("Exchanging authorization code for tokens...")
         
         # Exchange authorization code for tokens
-        flow.fetch_token(code=code)
-        credentials = flow.credentials
+        try:
+            flow.fetch_token(code=code)
+            credentials = flow.credentials
+        except Exception as scope_error:
+            # Handle scope mismatch by ignoring the warning and continuing
+            if "Scope has changed" in str(scope_error):
+                logger.warning(f"Scope mismatch detected, but continuing: {scope_error}")
+                # Try to get credentials anyway
+                credentials = flow.credentials
+            else:
+                raise scope_error
         
         logger.info(f"Credentials obtained: {credentials.to_json()[:100]}...")
         
