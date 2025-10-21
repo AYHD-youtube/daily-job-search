@@ -180,10 +180,12 @@ def get_gmail_flow(user=None):
         try:
             # Use user's uploaded OAuth credentials
             client_config = json.loads(user.user_oauth_credentials)
+            # Use HTTPS redirect URI for production
+            redirect_uri = 'https://daily.ayhd.dev/gmail-callback'
             flow = Flow.from_client_config(
                 client_config,
                 scopes=GMAIL_SCOPES,
-                redirect_uri=request.url_root + 'gmail-callback'
+                redirect_uri=redirect_uri
             )
             return flow
         except Exception as e:
