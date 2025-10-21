@@ -26,6 +26,8 @@ sudo docker-compose down 2>/dev/null || true
 
 # Pull latest changes from GitHub
 echo "📥 Pulling latest changes from GitHub..."
+# Mark repo as safe to avoid "dubious ownership" errors
+git config --global --add safe.directory "$(pwd)" 2>/dev/null || true
 git pull origin main
 
 # Check if there are any changes
